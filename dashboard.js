@@ -11,7 +11,7 @@ const TASKS = [
   { key: 'interactions', name: '互动数据', icon: '♡', desc: '近7日、近30日' },
   { key: 'followers', name: '涨粉数据', icon: '↗', desc: '近7日、近30日' },
   { key: 'posts', name: '发布数据', icon: '▤', desc: '近7日、近30日' },
-  { key: 'notes', name: '内容分析 · 笔记列表明细', icon: '▦', desc: '平台最大可选范围 · 最多导出前1000条' }
+  { key: 'notes', name: '内容分析 · 笔记列表明细', icon: '▦', desc: '自动选择近半年 · 最多导出前1000条' }
 ];
 const $ = id => document.getElementById(id);
 let running = false;
@@ -348,32 +348,18 @@ function closeManual(choice) {
   resolve(choice);
 }
 async function requireWideDates() {
-  let current = await page('dates');
-  if (current.days >= 165) return { ...current, mode: '已设置最宽范围（自动确认）' };
-  await page('chooseWidestDate');
-  await sleep(450);
-  // A click may only open a date picker; try an explicit preset inside it.
-  await page('chooseWidestDate');
-  await sleep(1200);
-  current = await page('dates');
-  if (current.days >= 165) return { ...current, mode: '自动选择近半年' };
-  log('笔记日期仍非近半年，等待你在小红书原页面确认范围。', 'dim');
-  await chrome.tabs.update(sessionTab, { active: true });
-  while (true) {
-    checkCancel();
-    const desc = current.range?.length === 2
-      ? `目前检测到 ${current.range.join(' 至 ')}，约 ${current.days ?? '?'} 天。`
-      : '当前页面日期范围暂时无法自动识别。';
-    const choice = await manualDialog(desc + ' 请在小红书页面选择近半年／最大允许范围，再回来继续。');
-    if (choice === 'cancel') { canceled = true; checkCancel(); }
-    current = await page('dates');
-    if (choice === 'partial') {
-      log('用户主动选择较短日期范围；文件不会标记为完整历史。', 'dim');
-      return { ...current, mode: '用户指定当前范围（可能不全）' };
-    }
-    if (current.days >= 165) return { ...current, mode: '手动选择平台允许最大范围' };
-    log(`日期范围尚未扩大：${current.range?.join(' 至 ') || '无法识别'}；将继续提示。`, 'dim');
+  log('正在自动设置笔记明细的最大日期范围，无需人工选择。', 'dim');
+  const result = await page('chooseWidestDate');
+  for (const step of result?.attempts || []) log(`日期选择：${step}`, 'dim');
+  if (!result?.ok) {
+    await takeSnapshot('笔记最大日期范围_自动选择失败');
+    const actual = result?.after?.range?.join(' 至 ') || '无法读取';
+    const target = [result?.desired?.from,result?.desired?.to].join(' 至 ');
+    throw new Error(`无法确认最大日期范围。目标约 ${target}，实际 ${actual}。${result?.reason || '日期控件未适配'}。不会下载近30日数据冒充最大范围。`);
   }
+  const after = result.after;
+  log(`日期范围自动完成：${after.range.join(' 至 ')}，使用方式：${result.method}。`);
+  return { ...after, mode: result.method, confirmedMax: true, desired: result.desired };
 }
 
 async function run(notesOnly = false) {
@@ -424,9 +410,18 @@ async function run(notesOnly = false) {
     await navigate(URL_CONTENT, '笔记数据');
     const types = await page('setNotesAll');
     log(types?.reason || '笔记类型已检查。', 'dim');
-    contentDates = await requireWideDates();
+    try {
+      contentDates = await requireWideDates();
+    } catch (err) {
+      const r = newRecord('内容分析_笔记列表明细', '最大日期范围');
+      r.reason = err.message || String(err);
+      r.finishedAt = new Date().toISOString();
+      results.push(r);
+      taskState('notes', '日期设置失败', 'bad');
+      throw err;
+    }
     const rangeName = (contentDates.range?.length === 2) ? contentDates.range.join('_至_') : '当前网页范围';
-    const isWidest = Number(contentDates.days) >= 165;
+    const isWidest = contentDates.confirmedMax === true;
     const coverageFlag = isWidest ? '平台最大可选范围' : '仅当前范围_非全量';
     if (!isWidest) log(`注意：笔记明细仅覆盖 ${contentDates.days ?? '未知'} 天，不是近半年！下载文件将标注「仅当前范围_非全量」。`, 'error');
     else log('已确认筛选范围约半年；仅代表平台允许的范围，不代表账号全历史。', 'dim');
@@ -447,7 +442,7 @@ async function run(notesOnly = false) {
     const failure = results.filter(r => r.status !== '成功').length;
     const manifest = {
       tool: '小红书数据一键导出 Chrome 扩展版',
-      version: '1.3.0',
+      version: '1.4.0',
       runMode: notesOnly ? '仅笔记列表明细' : '完整批量导出',
       startedAt: session.startedAt, endedAt: ended, folder: session.fileBase,
       success, failure, completedTasks: results.length, expectedTasks: totalTasks,
@@ -467,7 +462,7 @@ async function run(notesOnly = false) {
       ...results.map(r => `${r.status === '成功' ? '[成功]' : '[失败]'} ${r.kind} ${r.period}\n   ${r.filename || r.reason}`),
       '',
       `笔记列表明细日期：${contentDates?.range?.join(' 至 ') || '未完成'}；${contentDates?.mode || '未确认'}`,
-      `笔记列表明细范围：${contentDates?.days >= 165 ? '平台允许最大日期范围（通常近半年）' : '范围不足，不保证完整'}`, 
+      `笔记列表明细范围：${contentDates?.confirmedMax ? '已自动设置并核验近半年的起止日期' : '自动选择或核验失败，未冒充全量'}`, 
       '说明：平台内容分析通常仅支持近半年；Excel 标明最多导出排序后前1000条笔记。',
       '说明：下载成功不等于已经验证笔记数；请以Excel实际标题、行数和日期为准。'
     ].join('\r\n');
