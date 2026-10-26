@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>小红书 · 数据导出助手</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<main class="app">
+  <header class="hero">
+    <div class="brand"><span class="brand-mark">小</span><span>创作者数据工具</span><span class="version">V1.3</span></div>
+    <h1>一次导出，整齐归档。</h1>
+    <p>直接使用你日常 Chrome 中的小红书登录状态。无需独立浏览器，也无需提供密码。</p>
+  </header>
+  <div class="layout">
+    <section class="panel main-panel">
+      <div class="panel-head">
+        <h2>导出任务</h2><span class="status" id="statusBadge">待开始</span>
+      </div>
+      <p class="muted">先导出账号概览，再导出「笔记列表明细」。也可以只重新导出笔记明细；每个文件独立检查下载状态。</p>
+      <div class="tasks" id="taskList"></div>
+      <div class="progress-box" id="progressBox" hidden>
+        <div class="progress-top"><strong id="progressTitle">运行中</strong><span id="progressCount">0 / 9</span></div>
+        <div class="track"><span id="progressBar"></span></div>
+        <small id="progressHint">导出的文件会保存到 Chrome 默认下载目录。</small>
+      </div>
+      <div class="actions">
+        <button id="startBtn" class="primary">开始批量导出（9项）</button>
+        <button id="notesOnlyBtn" class="secondary">仅导出笔记列表明细</button>
+        <button id="stopBtn" class="secondary" disabled>停止导出</button>
+        <button id="openSiteBtn" class="secondary">打开小红书后台</button>
+      </div>
+      <p class="notice">运行时请保持本页打开，不要同时操作被程序控制的小红书标签页；开始前建议在 Chrome「网站设置 → 自动下载」中允许 creator.xiaohongshu.com 连续下载。未启动下载时程序会暂停，并提供原网页人工点击接力。</p>
+    </section>
+    <aside class="panel info-panel">
+      <h2>本次保存位置</h2>
+      <div class="folder-name" id="folderName">开始后生成</div>
+      <p class="muted">保存在 Chrome 当前默认下载位置的 <code>小红书数据导出</code> 子目录中，每次自动创建新日期时间目录。</p>
+      <button id="showFolderBtn" class="link-btn">打开下载文件夹</button>
+      <hr>
+      <h2>数据范围说明</h2>
+      <p>账号概览：4 个栏目 × 近 7 日和近 30 日，合计 8 项。</p>
+      <p>内容分析：导出「笔记列表明细」，笔记类型选「全部」，优先选择平台允许的最大时间范围（页面提示通常为近半年）。</p>
+      <p>官方 Excel 标注最多导出排序后前1000条。历史范围之外或超过上限的笔记不保证包含。</p>
+      <div class="soft-warning"><strong>覆盖范围检查：</strong>如果网页仍是近30日，必须人工选取近半年；若选择按当前范围导出，文件名会写明「仅当前范围_非全量」。不会把111条或任何数量的笔记自动称为账号全历史。</div>
+    </aside>
+  </div>
+  <section class="panel console-panel">
+    <div class="panel-head"><h2>执行记录</h2><button id="clearLogBtn" class="tiny">清空界面记录</button></div>
+    <div class="log" id="logArea" role="log" aria-live="polite"><div class="log-line dim">准备就绪，点击「开始批量导出」。</div></div>
+  </section>
+</main>
+<div id="manualOverlay" class="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="manualTitle">
+    <span class="modal-icon">📅</span>
+    <h2 id="manualTitle">请确认笔记的日期范围</h2>
+    <p id="manualReason">需要把小红书「内容分析」中的默认近 30 日，调整为平台允许的最宽范围。</p>
+    <ol>
+      <li>切换到刚打开的 <strong>小红书内容分析</strong> 标签页。</li>
+      <li>把「笔记发布时间」选择为 <strong>近半年／平台允许的最大范围</strong>。</li>
+      <li>保持「笔记类型」为 <strong>全部</strong>，然后返回本页继续。</li>
+    </ol>
+    <div class="modal-actions">
+      <button class="primary" id="manualContinue">我已选择最宽范围，继续</button>
+      <button class="secondary" id="manualPartial">仅导出当前范围（文件将标注非全量）</button>
+      <button class="secondary" id="manualCancel">取消任务</button>
+    </div>
+    <p class="modal-detail" id="manualDetail"></p>
+  </div>
+</div>
+<div id="downloadProblemOverlay" class="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="downloadProblemTitle">
+    <span class="modal-icon">⚠️</span>
+    <h2 id="downloadProblemTitle">文件下载未启动</h2>
+    <p id="downloadProblemReason"></p>
+    <p>如 Chrome 下载记录中没有新文件，请在原网页手动点击一次，或检查右上角 Chrome 下载提示。也可以在设置中允许该网站连续下载： <code>https://creator.xiaohongshu.com</code>。检查完成后重试当前任务。</p>
+    <div class="modal-actions">
+      <button class="secondary" id="openDownloadSettingsBtn">打开 Chrome 自动下载设置</button>
+      <button class="secondary" id="downloadProblemManualOpen">去小红书网页手动点击</button>
+      <button class="primary" id="downloadProblemManualDone">我已经手动点击，检查下载</button>
+      <button class="secondary" id="downloadProblemRetry">重新自动尝试本项</button>
+      <button class="secondary" id="downloadProblemSkip">跳过本项</button>
+      <button class="secondary" id="downloadProblemStop">停止全部任务</button>
+    </div>
+    <p class="modal-detail">建议先尝试人工接力确认网页本身是否能下载。程序只在识别并完成文件归档后才标记成功。</p>
+  </div>
+</div>
+<script src="dashboard.js"></script>
+</body>
+</html>
