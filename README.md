@@ -9,7 +9,7 @@
 ![Version](https://img.shields.io/badge/仓库版本-v1.3.0-orange)
 
 > [!IMPORTANT]
-> 本仓库当前代码的版本为 **v1.3.0**，以仓库内的 \`manifest.json\` 为准。本文介绍的是该版本实际实现的功能；如果日期选择器没有提供兼容的快捷选项，**仍可能需要手动选择近半年**。这不是小红书官方插件。
+> 本仓库当前代码的版本为 **v1.3.0**，以仓库内的 ```manifest.json``` 为准。本文介绍的是该版本实际实现的功能；如果日期选择器没有提供兼容的快捷选项，**仍可能需要手动选择近半年**。这不是小红书官方插件。
 
 ## 为什么做这个工具？
 
@@ -37,18 +37,18 @@
 适用于 **Chrome 114 或更高版本的桌面浏览器**，在 Windows 10 上无需额外安装 Python、Node.js 或其他运行环境。
 
 1. 在本仓库页面点击 **Code → Download ZIP**，解压到一个**固定位置**（后续不要随意移动或删除该文件夹）。
-2. 在 Chrome 地址栏打开 \`chrome://extensions\`。
+2. 在 Chrome 地址栏打开 ```chrome://extensions```。
 3. 开启右上角 **开发者模式**。
-4. 点击 **加载已解压的扩展程序**，选择包含 \`manifest.json\` 的仓库文件夹。
+4. 点击 **加载已解压的扩展程序**，选择包含 ```manifest.json``` 的仓库文件夹。
 5. 将「小红书数据一键导出助手」固定到浏览器工具栏，便于以后使用。
 
 也可以使用 Git：
 
-\`\`\`bash
+```bash
 git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extensions.git
-\`\`\`
+```
 
-然后在 \`chrome://extensions\` 加载克隆下来的仓库目录。
+然后在 ```chrome://extensions``` 加载克隆下来的仓库目录。
 
 > 本项目目前采用**开发者模式加载本地扩展**的安装方式；不需要运行 EXE，也不需要将小红书的 Cookie 或密码导入插件。
 
@@ -70,7 +70,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 
 - 如果检测到大约半年（代码以 **165 天**为判断门槛），会继续导出。
 - 如果自动选择不成功，会弹窗提示用户在**原小红书页面**调整日期范围，再返回插件继续。
-- 也可以明确选择按当前较短范围导出；此时文件名会包含 \`仅当前范围_非全量\`，避免误认为覆盖全部笔记。
+- 也可以明确选择按当前较短范围导出；此时文件名会包含 ```仅当前范围_非全量```，避免误认为覆盖全部笔记。
 - **通过 165 天检查，不代表精确验证了平台所允许的最早日期**；应以最终 Excel 的日期与行数为准。
 
 > [!WARNING]
@@ -80,7 +80,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 
 文件会保存到 Chrome **当前默认下载目录**下面，而不是扩展安装目录：
 
-\`\`\`text
+```text
 下载内容/
 └── 小红书数据导出/
     └── 2026-10-26_20-18-06-301/         # 示例：本轮启动时间
@@ -96,7 +96,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
         ├── 导出结果清单.json
         ├── 导出记录.txt
         └── 执行日志.txt
-\`\`\`
+```
 
 以上是**结构示例**。笔记明细的实际文件名会包含真实起止日期，具体文件数则取决于成功的任务数量；中断、失败或只导出笔记明细时，不会凭空产生未完成的 Excel。
 
@@ -107,8 +107,8 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 <details>
 <summary><strong>点击导出后没有出现文件，或一直提示下载未启动？</strong></summary>
 
-1. 在 Chrome 地址栏打开 \`chrome://settings/content/automaticDownloads\`。
-2. 检查 \`creator.xiaohongshu.com\` 是否允许连续下载多个文件。
+1. 在 Chrome 地址栏打开 ```chrome://settings/content/automaticDownloads```。
+2. 检查 ```creator.xiaohongshu.com``` 是否允许连续下载多个文件。
 3. 查看 Chrome 下载记录，确认是否被浏览器拦截或中断。
 4. 插件若弹出异常提示，可先尝试**重新自动尝试本项**；必要时到小红书原网页手动点击「导出数据」，再让插件检查并接管归档。
 
@@ -124,7 +124,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 <details>
 <summary><strong>为什么只导出了 8 个文件，缺少笔记列表明细？</strong></summary>
 
-账号概览的 8 项和内容分析的 1 项属于两个页面。请检查控制台的第 9 项状态与 \`导出记录.txt\`。可以使用 **仅导出笔记列表明细** 单独补导。
+账号概览的 8 项和内容分析的 1 项属于两个页面。请检查控制台的第 9 项状态与 ```导出记录.txt```。可以使用 **仅导出笔记列表明细** 单独补导。
 </details>
 
 <details>
@@ -136,7 +136,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 <details>
 <summary><strong>更新源码后，Chrome 为什么仍在使用旧版？</strong></summary>
 
-替换本地扩展文件后，打开 \`chrome://extensions\`，找到插件并点击 **重新加载**，然后重新打开导出控制台。不要同时启用多个不同目录中的旧版本。
+替换本地扩展文件后，打开 ```chrome://extensions```，找到插件并点击 **重新加载**，然后重新打开导出控制台。不要同时启用多个不同目录中的旧版本。
 </details>
 
 ## 权限与隐私
@@ -145,11 +145,11 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 
 | 权限 | 用途 |
 | --- | --- |
-| \`tabs\` | 查找、打开和切换小红书后台标签页 |
-| \`scripting\` | 在小红书页面执行可见界面元素的定位、点击与状态读取 |
-| \`downloads\` | 观察下载任务、重命名并归档导出文件 |
-| \`storage\` | 保存当前导出任务及下载检查状态 |
-| \`https://creator.xiaohongshu.com/*\` | 将页面操作限定在小红书创作服务平台 |
+| ```tabs``` | 查找、打开和切换小红书后台标签页 |
+| ```scripting``` | 在小红书页面执行可见界面元素的定位、点击与状态读取 |
+| ```downloads``` | 观察下载任务、重命名并归档导出文件 |
+| ```storage``` | 保存当前导出任务及下载检查状态 |
+| ```https://creator.xiaohongshu.com/*``` | 将页面操作限定在小红书创作服务平台 |
 
 按当前仓库源码，插件**不主动读取账号密码或 Cookie，不通过非公开 API 获取数据，也不包含将导出数据上传到第三方服务器的逻辑**。数据下载依赖已登录网页本身提供的导出功能，并保存到本机的 Chrome 下载目录。
 
@@ -157,7 +157,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 
 ## 项目结构
 
-\`\`\`text
+```text
 .
 ├── manifest.json       # 扩展入口、版本与权限
 ├── background.js       # 扩展后台：打开控制台、监听及归档下载
@@ -167,7 +167,7 @@ git clone https://github.com/Zakariyya/xiaohongshu-data-export-for-chrome-extens
 ├── dashboard.js        # 批量任务编排、下载检查、日志与异常处理
 ├── icons/              # 扩展图标
 └── 安装及使用说明.txt
-\`\`\`
+```
 
 本项目为原生 JavaScript / HTML / CSS Chrome 扩展，未引入额外的前端构建步骤。修改代码后，在扩展管理页面点击**重新加载**即可本地验证。
 
