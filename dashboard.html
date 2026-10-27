@@ -10,7 +10,7 @@
 <body>
 <main class="app">
   <header class="hero">
-    <div class="brand"><span class="brand-mark">小</span><span>创作者数据工具</span><span class="version">V1.4</span></div>
+    <div class="brand"><span class="brand-mark">小</span><span>创作者数据工具</span><span class="version">V1.5</span></div>
     <h1>一次导出，整齐归档。</h1>
     <p>直接使用你日常 Chrome 中的小红书登录状态。无需独立浏览器，也无需提供密码。</p>
   </header>
@@ -47,6 +47,23 @@
       <div class="soft-warning"><strong>覆盖范围检查：</strong>插件会自动尝试快捷选项、日期输入框及日历控件，并核验起止日期。若不能确认最广范围，将终止笔记明细导出并保存诊断记录，不会把近30日错误标注为最广范围。</div>
     </aside>
   </div>
+  <section class="panel console-panel" aria-labelledby="scheduleTitle">
+    <h2 id="scheduleTitle">定时全量导出</h2>
+    <form id="scheduleForm">
+      <label class="schedule-enable"><input type="checkbox" id="scheduleEnabled"> 开启后台定时导出（全部 9 项）</label>
+      <div class="schedule-fields">
+        <label>执行方式<select id="scheduleMode"><option value="interval">每隔 X 小时</option><option value="daily">每天固定时间</option></select></label>
+        <label id="scheduleHoursLabel">间隔小时<input id="scheduleHours" type="number" min="1" max="8760" step="any" value="24" required></label>
+        <label id="scheduleTimeLabel" hidden>本地时间<input id="scheduleTime" type="time" value="09:00" required></label>
+        <button class="primary" id="scheduleSave" type="submit">保存定时设置</button>
+      </div>
+    </form>
+    <p id="scheduleMessage" role="status" aria-live="polite">正在读取设置…</p>
+    <p id="scheduleNext">下次执行：未开启</p>
+    <p id="scheduleLast">上次自动导出：暂无记录</p>
+    <p class="muted">无需打开本助手。到点在后台小红书标签页执行，不切换当前页面，结束后关闭临时标签页。请保持 Chrome 运行、账号已登录；休眠或退出期间错过的计划，恢复后最多补执行一次。已有导出运行时跳过本次。</p>
+    <p class="notice">尽量静默下载：请在 Chrome 下载设置中关闭「下载前询问每个文件的保存位置」，并允许小红书网站连续自动下载。浏览器仍可能显示下载提示；登录失效或下载失败将记录结果，不弹出助手或等待人工操作。</p>
+  </section>
   <section class="panel console-panel">
     <div class="panel-head"><h2>执行记录</h2><button id="clearLogBtn" class="tiny">清空界面记录</button></div>
     <div class="log" id="logArea" role="log" aria-live="polite"><div class="log-line dim">准备就绪，点击「开始批量导出」。</div></div>
@@ -88,5 +105,6 @@
   </div>
 </div>
 <script src="dashboard.js"></script>
+<script src="schedule-ui.js"></script>
 </body>
 </html>

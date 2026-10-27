@@ -1,4 +1,6 @@
+(() => {
 'use strict';
+const backgroundMode = typeof document === 'undefined';
 
 const URL_ACCOUNT = 'https://creator.xiaohongshu.com/statistics/account/v2?source=official';
 const URL_CONTENT = 'https://creator.xiaohongshu.com/statistics/data-analysis?source=official';
@@ -40,6 +42,7 @@ function makeSession() {
 function log(message, type = '') {
   const line = `[${nowStr()}] ${message}`;
   logs.push({ line, type });
+  if (backgroundMode) return;
   const el = document.createElement('div');
   el.className = `log-line ${type}`.trim();
   el.textContent = line;
@@ -47,10 +50,12 @@ function log(message, type = '') {
   $('logArea').scrollTop = $('logArea').scrollHeight;
 }
 function setStatus(label, kind = '') {
+  if (backgroundMode) return;
   const e = $('statusBadge'); e.textContent = label;
   e.className = ('status ' + kind).trim();
 }
 function renderTasks() {
+  if (backgroundMode) return;
   $('taskList').textContent = '';
   for (const task of TASKS) {
     const el = document.createElement('div');
@@ -65,10 +70,12 @@ function renderTasks() {
   }
 }
 function taskState(key, text, style = '') {
+  if (backgroundMode) return;
   const el = document.querySelector(`.task[data-key="${key}"] .task-state`);
   if (el) { el.textContent = text; el.className = ('task-state ' + style).trim(); }
 }
 function setProgress(done, total, label = '正在导出') {
+  if (backgroundMode) return;
   $('progressBox').hidden = false;
   $('progressTitle').textContent = label;
   $('progressCount').textContent = `${done} / ${total}`;
@@ -91,6 +98,12 @@ async function page(action, arg) {
   return result?.result;
 }
 async function findOrCreateTab() {
+  if (backgroundMode) {
+    const tab = await chrome.tabs.create({ url: URL_ACCOUNT, active: false });
+    sessionTab = tab.id;
+    await chrome.storage.session.set({ xhs_auto_tab_v1: tab.id });
+    return tab.id;
+  }
   const all = await chrome.tabs.query({ url: 'https://creator.xiaohongshu.com/*' });
   const current = all.find(t => t.active && t.windowId) || all.find(t => t.url?.includes('/statistics/')) || all[0];
   if (current) return current.id;
@@ -229,6 +242,7 @@ async function takeSnapshot(label) {
   } catch (err) { log(`诊断文件未保存：${err.message}`, 'error'); return null; }
 }
 function downloadProblemDialog(reason, name) {
+  if (backgroundMode) return Promise.resolve('skip');
   $('downloadProblemTitle').textContent = `「${name}」未触发下载`;
   $('downloadProblemReason').textContent = reason;
   $('downloadProblemOverlay').hidden = false;
@@ -280,7 +294,7 @@ async function exportOne(kind, period, key) {
             log('人工接力：等待你在原小红书网页点击「导出数据」，再由扩展检查并归档。', 'dim');
             downloaded = await waitForDownload(token, armedAt, 30000);
           } else {
-            record.reason = choice === 'skip' ? `${err.message}；用户选择跳过` : err.message;
+            record.reason = choice === 'skip' ? `${err.message}；本项已跳过` : err.message;
             break;
           }
         }
@@ -313,25 +327,20 @@ async function exportOne(kind, period, key) {
 
 async function downloadReport(name, content, type = 'text/plain;charset=utf-8') {
   if (!session) return null;
-  const blob = new Blob([content], { type });
-  const blobUrl = URL.createObjectURL(blob);
-  try {
-    const id = await chrome.downloads.download({
-      url: blobUrl, filename: `${session.fileBase}/${name}`,
-      conflictAction: 'uniquify', saveAs: false
-    });
-    if (id === undefined) throw new Error('浏览器拒绝保存文件');
-    // A Blob must remain alive until the browser completes the transfer.
-    for (let i = 0; i < 30; i++) {
-      const items = await chrome.downloads.search({ id });
-      if (items[0]?.state === 'complete') { latestFinishedDownloadId = id; return id; }
-      if (items[0]?.state === 'interrupted') throw new Error(`保存中断: ${items[0].error}`);
-      await sleep(250);
-    }
-    return id;
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 12000);
+  const dataUrl = `data:${type},${encodeURIComponent(content)}`;
+  const id = await chrome.downloads.download({
+    url: dataUrl, filename: `${session.fileBase}/${name}`,
+    conflictAction: 'uniquify', saveAs: false
+  });
+  if (id === undefined) throw new Error('浏览器拒绝保存文件');
+  // Wait for the report download to finish before closing the task.
+  for (let i = 0; i < 30; i++) {
+    const items = await chrome.downloads.search({ id });
+    if (items[0]?.state === 'complete') { latestFinishedDownloadId = id; return id; }
+    if (items[0]?.state === 'interrupted') throw new Error(`保存中断: ${items[0].error}`);
+    await sleep(250);
   }
+  throw new Error('保存报告超时，请检查 Chrome 下载记录');
 }
 function manualDialog(reason) {
   $('manualReason').textContent = reason;
@@ -362,12 +371,15 @@ async function requireWideDates() {
   return { ...after, mode: result.method, confirmedMax: true, desired: result.desired };
 }
 
-async function run(notesOnly = false) {
+async function runInternal(notesOnly = false) {
   if (running) return;
   const totalTasks = notesOnly ? 1 : 9;
-  running = true; canceled = false; session = makeSession(); results = [];
-  $('startBtn').disabled = true; $('notesOnlyBtn').disabled = true; $('stopBtn').disabled = false;
-  $('folderName').textContent = session.fileBase;
+  running = true; canceled = false; session = makeSession(); results = []; logs = []; sessionTab = null;
+  latestFinishedDownloadId = null;
+  if (!backgroundMode) {
+    $('startBtn').disabled = true; $('notesOnlyBtn').disabled = true; $('stopBtn').disabled = false;
+    $('folderName').textContent = session.fileBase;
+  }
   renderTasks(); setStatus('运行中', 'running'); setProgress(0, totalTasks);
   if (notesOnly) log('本轮模式：仅导出笔记列表明细（不重复下载前 8 个账号数据文件）。', 'dim');
   log(`创建新会话：${session.fileBase}`);
@@ -378,7 +390,7 @@ async function run(notesOnly = false) {
     await clearPending();
     await chrome.storage.local.set({ [CAPTURES_KEY]: {}, [OBS_KEY]: [] });
     sessionTab = await findOrCreateTab();
-    log(`使用现有 Chrome 标签页 ID ${sessionTab}；不会创建独立用户配置。`);
+    log(`使用${backgroundMode ? '临时后台' : '现有 Chrome'}标签页 ID ${sessionTab}。`);
     if (!notesOnly) {
     await navigate(URL_ACCOUNT, '观看数据');
     if (!(await page('snapshot'))?.hasDownload) throw new Error('账号概览未出现导出数据按钮；请确认已登录。');
@@ -442,7 +454,7 @@ async function run(notesOnly = false) {
     const failure = results.filter(r => r.status !== '成功').length;
     const manifest = {
       tool: '小红书数据一键导出 Chrome 扩展版',
-      version: '1.4.0',
+      version: '1.5.0',
       runMode: notesOnly ? '仅笔记列表明细' : '完整批量导出',
       startedAt: session.startedAt, endedAt: ended, folder: session.fileBase,
       success, failure, completedTasks: results.length, expectedTasks: totalTasks,
@@ -466,22 +478,46 @@ async function run(notesOnly = false) {
       '说明：平台内容分析通常仅支持近半年；Excel 标明最多导出排序后前1000条笔记。',
       '说明：下载成功不等于已经验证笔记数；请以Excel实际标题、行数和日期为准。'
     ].join('\r\n');
+    let reportError = '';
     try {
       await downloadReport('导出结果清单.json', JSON.stringify(manifest, null, 2), 'application/json');
       await downloadReport('导出记录.txt', textReport);
       await downloadReport('执行日志.txt', logs.map(x => x.line).join('\r\n')); 
-    } catch (err) { log(`保存结果清单失败：${err.message}`, 'error'); }
-    $('startBtn').disabled = false; $('notesOnlyBtn').disabled = false; $('stopBtn').disabled = true;
+    } catch (err) { reportError = `保存结果清单失败：${err.message}`; log(reportError, 'error'); }
+    if (!backgroundMode) {
+      $('startBtn').disabled = false; $('notesOnlyBtn').disabled = false; $('stopBtn').disabled = true;
+    }
     running = false;
     setProgress(completed, totalTasks, canceled ? '已停止' : '本轮结束');
-    if (!thrown && success === totalTasks) setStatus('全部完成', 'done');
-    else if (thrown || failure > 0 || success < totalTasks) setStatus(canceled ? '已停止' : '部分完成', 'failed');
+    if (!thrown && !reportError && success === totalTasks) setStatus('全部完成', 'done');
+    else setStatus(canceled ? '已停止' : '部分完成', 'failed');
     log(`本轮结束：成功 ${success}，失败 ${failure}，已统计 ${results.length}/${totalTasks} 个任务。`, success === totalTasks ? 'success' : 'dim');
-    await chrome.storage.local.set({ xhs_last_export_v1: { at: ended, folder: session.fileBase, success, failure } });
-    if (latestFinishedDownloadId != null) $('showFolderBtn').textContent = '在文件夹中显示结果文件';
+    const summary = { at: ended, folder: session.fileBase, success, failure, expected: totalTasks, error: [manifest.error, reportError].filter(Boolean).join('；'), canceled };
+    await chrome.storage.local.set({ xhs_last_export_v1: summary });
+    if (!backgroundMode && latestFinishedDownloadId != null) $('showFolderBtn').textContent = '在文件夹中显示结果文件';
+    return summary;
   }
 }
 
+async function run(notesOnly = false) {
+  return navigator.locks.request('xhs-full-export-run', { ifAvailable: true }, async lock => {
+    if (!lock || running) {
+      log('已有导出任务运行，本次已跳过。', 'dim');
+      return { skipped: true, at: new Date().toISOString() };
+    }
+    try { return await runInternal(notesOnly); }
+    finally {
+      running = false;
+      if (backgroundMode && sessionTab != null) {
+        try { await chrome.tabs.remove(sessionTab); } catch (_) { /* already closed */ }
+        await chrome.storage.session.remove('xhs_auto_tab_v1');
+        sessionTab = null;
+      }
+    }
+  });
+}
+globalThis.XhsExporter = { run };
+if (!backgroundMode) {
 $('startBtn').addEventListener('click', () => run(false));
 $('notesOnlyBtn').addEventListener('click', () => run(true));
 $('stopBtn').addEventListener('click', () => {
@@ -521,3 +557,6 @@ $('downloadProblemManualOpen').addEventListener('click', async () => {
   } catch (err) { log(`打开页面失败：${err.message}`, 'error'); }
 });
 $('downloadProblemManualDone').addEventListener('click', () => closeDownloadProblem('manual'));
+
+}
+})();

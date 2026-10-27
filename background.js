@@ -1,4 +1,5 @@
 'use strict';
+importScripts('schedule.js', 'dashboard.js', 'scheduled-export.js');
 // Chrome MV3: Observe downloads and route only files triggered by the current export task.
 // No cookies, private API calls or network interception.
 const PREFIX = '小红书数据导出';
