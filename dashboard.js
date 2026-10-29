@@ -327,9 +327,11 @@ async function exportOne(kind, period, key) {
 
 async function downloadReport(name, content, type = 'text/plain;charset=utf-8') {
   if (!session) return null;
-  const dataUrl = `data:${type},${encodeURIComponent(content)}`;
+  // The filename listener must explicitly suggest this path, even for our own downloads.
+  const filename = `${session.fileBase}/${name}`;
+  const dataUrl = `data:${type};xhs-filename=${encodeURIComponent(filename)},${encodeURIComponent(content)}`;
   const id = await chrome.downloads.download({
-    url: dataUrl, filename: `${session.fileBase}/${name}`,
+    url: dataUrl, filename,
     conflictAction: 'uniquify', saveAs: false
   });
   if (id === undefined) throw new Error('浏览器拒绝保存文件');

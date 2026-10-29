@@ -34,6 +34,18 @@ function getExt(item) {
   if (mime.includes('spreadsheet') || mime.includes('excel')) return '.xlsx';
   return '.xlsx';
 }
+function reportFilename(item) {
+  const metadata = String(item.url || '').split(',', 1)[0];
+  const match = metadata.match(/^data:[^,]*;xhs-filename=([^;,]+)$/);
+  if (!match) return null;
+  try {
+    const filename = decodeURIComponent(match[1]);
+    const parts = filename.split('/');
+    if (parts.length !== 3 || parts[0] !== PREFIX ||
+        parts.some(part => !part || part === '.' || part === '..' || /[\\:*?"<>|\x00-\x1f]/.test(part))) return null;
+    return filename;
+  } catch { return null; }
+}
 async function observe(item, stage, outcome) {
   // URL query strings, cookies and signed CDN URLs are deliberately not logged.
   try {
@@ -58,7 +70,11 @@ chrome.downloads.onCreated.addListener(item => {
 chrome.downloads.onDeterminingFilename.addListener((item, suggest) => {
   (async () => {
     try {
-      if (item.byExtensionId === chrome.runtime.id) { suggest(); return; }
+      if (item.byExtensionId === chrome.runtime.id) {
+        const filename = reportFilename(item);
+        suggest(filename ? { filename, conflictAction: 'uniquify' } : undefined);
+        return;
+      }
       const data = await chrome.storage.local.get([PENDING_KEY, CAPTURES_KEY]);
       const task = data[PENDING_KEY];
       const now = Date.now();

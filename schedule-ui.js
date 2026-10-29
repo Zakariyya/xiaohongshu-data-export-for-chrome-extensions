@@ -9,7 +9,11 @@
     $('scheduleTimeLabel').hidden = !daily;
     $('scheduleTime').disabled = !daily || !$('scheduleEnabled').checked;
   }
-  function next(config) { $('scheduleNext').textContent = `下次执行：${config.enabled ? format(config.nextAt) : '未开启'}`; }
+  function next(config) {
+    const label = config.running ? '正在导出，成功后重新倒计时' :
+      config.retrying ? `等待重试：${format(config.nextAt)}（未成功则每 5 分钟重试）` : `下次执行：${format(config.nextAt)}`;
+    $('scheduleNext').textContent = config.enabled ? label : '下次执行：未开启';
+  }
   function last(result) {
     if (!result) return;
     const names = { running: '运行中', success: '全部完成', failed: '失败或部分完成', interrupted: '已中断', skipped: '已有导出运行，已跳过' };

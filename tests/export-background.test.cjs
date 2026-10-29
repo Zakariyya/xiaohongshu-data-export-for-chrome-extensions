@@ -60,6 +60,10 @@ test('full background export completes all 9 tasks and closes only its temporary
   assert.deepEqual(removed,[42]);
   assert.equal(Object.keys(state.xhs_captures_v1).length,9);
   assert.equal(downloads.length,3);
+  for (const download of downloads) {
+    const metadata = download.url.slice(0, download.url.indexOf(','));
+    assert.equal(decodeURIComponent(metadata.split(';xhs-filename=')[1]), download.filename);
+  }
   assert.equal(state.xhs_auto_tab_v1, undefined);
 });
 test('missing downloads finish with failure instead of waiting for an invisible manual dialog', async () => {

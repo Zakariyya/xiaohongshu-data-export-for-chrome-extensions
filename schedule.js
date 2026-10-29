@@ -32,7 +32,7 @@ globalThis.XhsSchedule = (() => {
     return date.getTime();
   }
   async function arm(config) {
-    if (!config.enabled) { await chrome.alarms.clear(ALARM); return; }
+    if (!config.enabled || !Number.isFinite(config.nextAt)) { await chrome.alarms.clear(ALARM); return; }
     const existing = await chrome.alarms.get(ALARM);
     if (!existing || existing.scheduledTime !== config.nextAt) await chrome.alarms.create(ALARM, { when: config.nextAt });
   }
@@ -40,16 +40,23 @@ globalThis.XhsSchedule = (() => {
     KEY, ALARM, get,
     save: (input, now = Date.now()) => serial(async () => {
       const valid = validate(input);
-      const config = { ...await get(), ...valid, nextAt: valid.enabled ? next(valid, now) : null };
+      const previous = await get();
+      const config = { ...previous, ...valid, revision: (previous.revision || 0) + 1, running: false, retrying: false, nextAt: valid.enabled ? next(valid, now) : null };
       await chrome.storage.local.set({ [KEY]: config });
       await arm(config);
       return config;
     }),
-    restore: (now = Date.now()) => serial(async () => {
+    restore: (now = Date.now(), recover = false) => serial(async () => {
       const config = await get();
       if (config.enabled) {
         validate(config);
-        if (!Number.isFinite(config.nextAt)) {
+        if (recover && config.running && config.mode === 'interval') {
+          config.running = false;
+          config.retrying = true;
+          config.nextAt = now + 5 * 60000;
+          await chrome.storage.local.set({ [KEY]: config });
+        }
+        if (!config.running && !Number.isFinite(config.nextAt)) {
           config.nextAt = next(config, now);
           await chrome.storage.local.set({ [KEY]: config });
         }
@@ -61,10 +68,23 @@ globalThis.XhsSchedule = (() => {
     consume: (now = Date.now()) => serial(async () => {
       const config = await get();
       if (!config.enabled || !Number.isFinite(config.nextAt) || config.nextAt > now) return false;
-      config.nextAt = next(validate(config), now);
+      validate(config);
+      config.attempt = (config.attempt || 0) + 1;
+      config.running = config.mode === 'interval';
+      config.nextAt = config.running ? null : next(config, now);
       await chrome.storage.local.set({ [KEY]: config });
       await arm(config);
-      return true;
+      return { revision: config.revision, attempt: config.attempt, mode: config.mode };
+    }),
+    finish: (ticket, success, now = Date.now()) => serial(async () => {
+      const config = await get();
+      if (!ticket || ticket.mode !== 'interval' || !config.enabled || !config.running ||
+          config.revision !== ticket.revision || config.attempt !== ticket.attempt) return;
+      config.running = false;
+      config.retrying = !success;
+      config.nextAt = success ? next(config, now) : now + 5 * 60000;
+      await chrome.storage.local.set({ [KEY]: config });
+      await arm(config);
     })
   };
 })();

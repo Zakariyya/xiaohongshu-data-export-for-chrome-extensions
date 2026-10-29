@@ -36,13 +36,13 @@ test('reject invalid settings without changing existing schedule', async () => {
   }
   assert.equal(alarms.size, 1);
 });
-test('overdue alarm is consumed once even if multiple events arrive; advance from now', async () => {
+test('overdue interval is consumed once and waits for completion', async () => {
   const { api } = load();
   await api.save({ enabled: true, mode: 'interval', hours: 1 }, 100000);
   const now = 100000 + 10 * 3600000;
   const results = await Promise.all([api.consume(now), api.consume(now)]);
   assert.equal(results.filter(Boolean).length, 1);
-  assert.equal((await api.get()).nextAt, now + 3600000);
+  assert.equal((await api.get()).nextAt, null);
 });
 test('disabled schedule removes alarm and does not run on stale delivery', async () => {
   const { api, alarms } = load();
@@ -51,4 +51,46 @@ test('disabled schedule removes alarm and does not run on stale delivery', async
   await api.restore();
   assert.equal(alarms.size, 0);
   assert.equal(await api.consume(), false);
+});
+
+test('interval failures retry every five minutes and success restarts the full interval', async () => {
+  const { api, alarms } = load();
+  await api.save({enabled:true,mode:'interval',hours:2}, 0);
+  const ticket = await api.consume(7200000);
+  assert.equal((await api.get()).nextAt, null);
+  assert.equal(await api.consume(7200001), false);
+  await api.finish(ticket, false, 7300000);
+  assert.equal((await api.get()).nextAt, 7600000);
+  assert.equal((await api.get()).retrying, true);
+  const retry = await api.consume(7600000);
+  await api.finish(retry, false, 7700000);
+  assert.equal((await api.get()).nextAt, 8000000);
+  const final = await api.consume(8000000);
+  await api.finish(final, true, 8100000);
+  assert.equal((await api.get()).nextAt, 15300000);
+  assert.equal((await api.get()).retrying, false);
+  assert.equal(alarms.size, 1);
+});
+
+test('saving or disabling a schedule prevents stale completion from changing it', async () => {
+  const { api } = load();
+  await api.save({enabled:true,mode:'interval',hours:1}, 0);
+  const ticket = await api.consume(3600000);
+  const saved = await api.save({enabled:true,mode:'interval',hours:3}, 3600100);
+  await api.finish(ticket, false, 3600200);
+  assert.equal((await api.get()).nextAt, saved.nextAt);
+  const current = await api.consume(saved.nextAt);
+  await api.save({enabled:false});
+  await api.finish(current, false);
+  assert.equal((await api.get()).nextAt, null);
+});
+
+test('worker restart recovers an interrupted interval into a persistent retry deadline', async () => {
+  const { api } = load();
+  await api.save({enabled:true,mode:'interval',hours:1}, 0);
+  await api.consume(3600000);
+  await api.restore(3700000, true);
+  assert.equal((await api.get()).nextAt, 4000000);
+  await api.restore(3800000);
+  assert.equal((await api.get()).nextAt, 4000000);
 });

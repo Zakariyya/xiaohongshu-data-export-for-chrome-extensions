@@ -15,30 +15,33 @@
     }
     const saved = (await chrome.storage.local.get(RESULT_KEY))[RESULT_KEY];
     if (saved?.status === 'running') {
-      await chrome.storage.local.set({ [RESULT_KEY]: { ...saved, status: 'interrupted', at: new Date().toISOString(), error: '浏览器或扩展重启，上次任务中断；为避免重复下载，不自动重试。' } });
+      await chrome.storage.local.set({ [RESULT_KEY]: { ...saved, status: 'interrupted', at: new Date().toISOString(), error: '浏览器或扩展重启，上次任务中断；倒计时模式将在 5 分钟后重试。' } });
     }
-    await XhsSchedule.restore();
+    await XhsSchedule.restore(Date.now(), true);
   }
   const ready = initialize();
   ready.catch(error => console.error('恢复定时导出失败', error));
 
-  async function start() {
-    if (exporting) return;
+  async function start(ticket) {
+    if (exporting) { await XhsSchedule.finish(ticket, false); return; }
+    let success = false;
     exporting = true;
     try {
       await chrome.storage.local.set({ [RESULT_KEY]: { status: 'running', at: new Date().toISOString() } });
       const result = await XhsExporter.run(false);
       const status = result.skipped ? 'skipped' : (!result.error && result.success === result.expected ? 'success' : 'failed');
+      success = status === 'success';
       await chrome.storage.local.set({ [RESULT_KEY]: { ...result, status } });
     } catch (error) {
       await chrome.storage.local.set({ [RESULT_KEY]: { status: 'failed', at: new Date().toISOString(), error: error.message || String(error) } });
-    } finally { exporting = false; }
+    } finally { exporting = false; await XhsSchedule.finish(ticket, success); }
   }
   chrome.alarms.onAlarm.addListener(alarm => {
     if (alarm.name !== XhsSchedule.ALARM) return;
     // Do not hold an onAlarm response open throughout the export.
     void ready.then(async () => {
-      if (await XhsSchedule.consume()) await start();
+      const ticket = await XhsSchedule.consume();
+      if (ticket) await start(ticket);
     }).catch(error => console.error('定时导出失败', error));
   });
   for (const event of [chrome.runtime.onInstalled, chrome.runtime.onStartup]) {

@@ -6,7 +6,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
 function setup(previous) {
   const state = { xhs_auto_result_v1: previous, xhs_auto_tab_v1: previous ? 42 : undefined }, alarms = new Map(), removed = [];
   const event = () => ({ listeners: [], addListener(fn) { this.listeners.push(fn); } });
-  let runs = 0, release;
+  let runs = 0, release, reject;
   const chrome = {
     runtime: { id:'test', onInstalled:event(), onStartup:event(), onMessage:event() },
     storage: { local: { get:async k => ({[k]:state[k]}), set:async v => Object.assign(state,structuredClone(v)), remove:async k=>delete state[k] } },
@@ -14,9 +14,9 @@ function setup(previous) {
     alarms: {onAlarm:event(),get:async n => alarms.get(n),create:async(n,v) => alarms.set(n,{name:n,scheduledTime:v.when}),clear:async n => alarms.delete(n)}
   };
   chrome.storage.session = chrome.storage.local;
-  const context = vm.createContext({chrome, Date, console, XhsExporter:{run:async () => { runs++; return new Promise(resolve => {release = resolve;}); }}});
+  const context = vm.createContext({chrome, Date, console, XhsExporter:{run:async () => { runs++; return new Promise((resolve, fail) => {release = resolve; reject = fail;}); }}});
   for (const file of ['schedule.js','scheduled-export.js']) vm.runInContext(fs.readFileSync(file,'utf8'),context);
-  return {state, alarms, chrome, context, removed, runs:()=>runs, finish:r=>release(r)};
+  return {state, alarms, chrome, context, removed, runs:()=>runs, finish:r=>release(r), fail:e=>reject(e)};
 }
 test('alarm dispatch runs one full export and records completion; repeat delivery ignored', async () => {
   const s = setup(); await tick();
@@ -47,3 +47,29 @@ test('save via message, repeat updates, disable, and unrelated messages', async 
   assert.equal(s.alarms.size,0);
   assert.equal(message({type:'schedule:save'},{id:'other'},()=>assert.fail()),undefined);
 });
+
+for (const failure of ['timeout', 'partial', 'busy']) {
+  test(`interval alarm retries after ${failure} and resumes countdown after success`, async () => {
+    const s = setup(); await tick();
+    await s.context.XhsSchedule.save({enabled:true,mode:'interval',hours:2}, Date.now()-10800000);
+    const fire = () => s.chrome.alarms.onAlarm.listeners[0]({name:'xhs-full-export'});
+    fire(); await tick();
+    const before = Date.now();
+    if (failure === 'timeout') s.fail(new Error('网络超时'));
+    else s.finish(failure === 'busy' ? {skipped:true} : {success:8,expected:9});
+    await tick();
+    let config = await s.context.XhsSchedule.get();
+    assert.equal(config.retrying, true);
+    assert.ok(config.nextAt >= before + 300000 && config.nextAt <= Date.now() + 300000);
+    fire(); await tick();
+    assert.equal(s.runs(), 1);
+    s.state.xhs_schedule_v1.nextAt = Date.now() - 1;
+    fire(); fire(); await tick();
+    assert.equal(s.runs(), 2);
+    const finished = Date.now();
+    s.finish({success:9,expected:9}); await tick();
+    config = await s.context.XhsSchedule.get();
+    assert.equal(config.retrying, false);
+    assert.ok(config.nextAt >= finished + 7200000 && config.nextAt <= Date.now() + 7200000);
+  });
+}
