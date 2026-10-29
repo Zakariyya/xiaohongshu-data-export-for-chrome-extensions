@@ -6,12 +6,15 @@
     const daily = $('scheduleMode').value === 'daily';
     $('scheduleHoursLabel').hidden = daily;
     $('scheduleHours').disabled = daily || !$('scheduleEnabled').checked;
+    $('scheduleRetryLabel').hidden = daily;
+    $('scheduleRetryHelp').hidden = daily;
+    $('scheduleRetryMinutes').disabled = daily || !$('scheduleEnabled').checked;
     $('scheduleTimeLabel').hidden = !daily;
     $('scheduleTime').disabled = !daily || !$('scheduleEnabled').checked;
   }
   function next(config) {
     const label = config.running ? '正在导出，成功后重新倒计时' :
-      config.retrying ? `等待重试：${format(config.nextAt)}（未成功则每 5 分钟重试）` : `下次执行：${format(config.nextAt)}`;
+      config.retrying ? `等待重试：${format(config.nextAt)}（未成功则每 ${config.retryMinutes ?? 5} 分钟重试）` : `下次执行：${format(config.nextAt)}`;
     $('scheduleNext').textContent = config.enabled ? label : '下次执行：未开启';
   }
   function last(result) {
@@ -29,7 +32,8 @@
     try {
       const response = await chrome.runtime.sendMessage({ type: 'schedule:save', config: {
         enabled: $('scheduleEnabled').checked, mode: $('scheduleMode').value,
-        hours: Number($('scheduleHours').value), time: $('scheduleTime').value
+        hours: Number($('scheduleHours').value), time: $('scheduleTime').value,
+        retryMinutes: Number($('scheduleRetryMinutes').value)
       } });
       if (!response?.ok) throw new Error(response?.error || '后台未响应');
       next(response.config);
@@ -51,6 +55,7 @@
       $('scheduleEnabled').checked = config.enabled;
       $('scheduleMode').value = config.mode;
       $('scheduleHours').value = config.hours || 24;
+      $('scheduleRetryMinutes').value = config.retryMinutes ?? 5;
       $('scheduleTime').value = config.time || '09:00';
       fields(); next(config);
       last((await chrome.storage.local.get('xhs_auto_result_v1')).xhs_auto_result_v1);

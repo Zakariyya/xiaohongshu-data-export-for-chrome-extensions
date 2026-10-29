@@ -54,9 +54,11 @@
       <div class="schedule-fields">
         <label>执行方式<select id="scheduleMode"><option value="interval">每隔 X 小时</option><option value="daily">每天固定时间</option></select></label>
         <label id="scheduleHoursLabel">间隔小时<input id="scheduleHours" type="number" min="1" max="8760" step="any" value="24" required></label>
+        <label id="scheduleRetryLabel" for="scheduleRetryMinutes">失败重试间隔（分钟，必填）<input id="scheduleRetryMinutes" name="retryMinutes" type="number" min="1" max="1440" step="1" value="5" required aria-describedby="scheduleRetryHelp"></label>
         <label id="scheduleTimeLabel" hidden>本地时间<input id="scheduleTime" type="time" value="09:00" required></label>
         <button class="primary" id="scheduleSave" type="submit">保存定时设置</button>
       </div>
+      <p id="scheduleRetryHelp" class="muted">倒计时模式专用，1～1440 分钟，默认 5 分钟。每次失败或部分完成后按此间隔重试，直到全部成功后重新开始正常倒计时。保存设置会重新开始计时。</p>
     </form>
     <p id="scheduleMessage" role="status" aria-live="polite">正在读取设置…</p>
     <p id="scheduleNext">下次执行：未开启</p>

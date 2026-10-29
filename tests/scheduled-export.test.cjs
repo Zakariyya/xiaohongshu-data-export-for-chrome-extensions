@@ -51,7 +51,7 @@ test('save via message, repeat updates, disable, and unrelated messages', async 
 for (const failure of ['timeout', 'partial', 'busy']) {
   test(`interval alarm retries after ${failure} and resumes countdown after success`, async () => {
     const s = setup(); await tick();
-    await s.context.XhsSchedule.save({enabled:true,mode:'interval',hours:2}, Date.now()-10800000);
+    await s.context.XhsSchedule.save({enabled:true,mode:'interval',hours:2,retryMinutes:7}, Date.now()-10800000);
     const fire = () => s.chrome.alarms.onAlarm.listeners[0]({name:'xhs-full-export'});
     fire(); await tick();
     const before = Date.now();
@@ -60,7 +60,7 @@ for (const failure of ['timeout', 'partial', 'busy']) {
     await tick();
     let config = await s.context.XhsSchedule.get();
     assert.equal(config.retrying, true);
-    assert.ok(config.nextAt >= before + 300000 && config.nextAt <= Date.now() + 300000);
+    assert.ok(config.nextAt >= before + 420000 && config.nextAt <= Date.now() + 420000);
     fire(); await tick();
     assert.equal(s.runs(), 1);
     s.state.xhs_schedule_v1.nextAt = Date.now() - 1;

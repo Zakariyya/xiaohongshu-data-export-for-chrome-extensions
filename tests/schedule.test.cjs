@@ -94,3 +94,39 @@ test('worker restart recovers an interrupted interval into a persistent retry de
   await api.restore(3800000);
   assert.equal((await api.get()).nextAt, 4000000);
 });
+
+test('custom retry minutes persist and control failures and interrupted task recovery', async () => {
+  const { api } = load();
+  const saved = await api.save({enabled:true,mode:'interval',hours:2,retryMinutes:12}, 0);
+  assert.equal(saved.retryMinutes, 12);
+  const ticket = await api.consume(7200000);
+  await api.finish(ticket, false, 7300000);
+  assert.equal((await api.get()).nextAt, 8020000);
+  await api.consume(8020000);
+  await api.restore(8100000, true);
+  assert.equal((await api.get()).nextAt, 8820000);
+  const retry = await api.consume(8820000);
+  await api.finish(retry, true, 8900000);
+  assert.equal((await api.get()).nextAt, 16100000);
+});
+
+test('legacy settings default to five minutes without resetting their deadline', async () => {
+  const { api, state } = load();
+  state.xhs_schedule_v1 = {enabled:true,mode:'interval',hours:1,nextAt:3600000};
+  assert.equal((await api.get()).retryMinutes, 5);
+  await api.restore(1000);
+  assert.equal((await api.get()).nextAt, 3600000);
+});
+
+test('invalid retry minutes are rejected without changing settings or alarm', async () => {
+  const { api, alarms } = load();
+  const saved = await api.save({enabled:true,mode:'interval',hours:1,retryMinutes:10}, 0);
+  for (const retryMinutes of [0, -1, 1.5, 1441, Infinity, NaN, '', null, 'abc']) {
+    await assert.rejects(api.save({enabled:true,mode:'interval',hours:1,retryMinutes}), /重试/);
+    assert.equal((await api.get()).retryMinutes, 10);
+    assert.equal(alarms.get(api.ALARM).scheduledTime, saved.nextAt);
+  }
+  for (const retryMinutes of [1, 1440]) {
+    assert.equal((await api.save({enabled:true,mode:'interval',hours:1,retryMinutes})).retryMinutes, retryMinutes);
+  }
+});

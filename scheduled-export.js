@@ -15,7 +15,7 @@
     }
     const saved = (await chrome.storage.local.get(RESULT_KEY))[RESULT_KEY];
     if (saved?.status === 'running') {
-      await chrome.storage.local.set({ [RESULT_KEY]: { ...saved, status: 'interrupted', at: new Date().toISOString(), error: '浏览器或扩展重启，上次任务中断；倒计时模式将在 5 分钟后重试。' } });
+      await chrome.storage.local.set({ [RESULT_KEY]: { ...saved, status: 'interrupted', at: new Date().toISOString(), error: '浏览器或扩展重启，上次任务中断；已开启的倒计时模式将按设置的失败重试间隔重试。' } });
     }
     await XhsSchedule.restore(Date.now(), true);
   }

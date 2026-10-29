@@ -9,14 +9,17 @@ globalThis.XhsSchedule = (() => {
     queue = result.catch(() => {});
     return result;
   };
-  const get = async () => (await chrome.storage.local.get(KEY))[KEY] || { enabled: false, mode: 'interval', hours: 24, time: '09:00', nextAt: null };
+  const get = async () => ({ enabled: false, mode: 'interval', hours: 24, time: '09:00', nextAt: null,
+    retryMinutes: 5, ...(await chrome.storage.local.get(KEY))[KEY] });
   function validate(input) {
     if (input.enabled === false) return { enabled: false };
     if (input.enabled !== true) throw new Error('请选择是否开启定时导出');
     if (input.mode === 'interval') {
       const hours = Number(input.hours);
       if (!Number.isFinite(hours) || hours < 1 || hours > 8760) throw new Error('间隔请输入 1～8760 小时');
-      return { enabled: true, mode: 'interval', hours };
+      const retryMinutes = input.retryMinutes === undefined ? 5 : Number(input.retryMinutes);
+      if (!Number.isInteger(retryMinutes) || retryMinutes < 1 || retryMinutes > 1440) throw new Error('失败重试间隔请输入 1～1440 的整数分钟');
+      return { enabled: true, mode: 'interval', hours, retryMinutes };
     }
     if (input.mode === 'daily' && /^([01]\d|2[0-3]):[0-5]\d$/.test(input.time)) {
       return { enabled: true, mode: 'daily', time: input.time };
@@ -53,7 +56,7 @@ globalThis.XhsSchedule = (() => {
         if (recover && config.running && config.mode === 'interval') {
           config.running = false;
           config.retrying = true;
-          config.nextAt = now + 5 * 60000;
+          config.nextAt = now + config.retryMinutes * 60000;
           await chrome.storage.local.set({ [KEY]: config });
         }
         if (!config.running && !Number.isFinite(config.nextAt)) {
@@ -82,7 +85,7 @@ globalThis.XhsSchedule = (() => {
           config.revision !== ticket.revision || config.attempt !== ticket.attempt) return;
       config.running = false;
       config.retrying = !success;
-      config.nextAt = success ? next(config, now) : now + 5 * 60000;
+      config.nextAt = success ? next(config, now) : now + config.retryMinutes * 60000;
       await chrome.storage.local.set({ [KEY]: config });
       await arm(config);
     })

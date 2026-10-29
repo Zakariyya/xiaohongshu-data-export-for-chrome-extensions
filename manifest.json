@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "小红书数据一键导出助手",
   "description": "在日常 Chrome 登录状态下，批量导出小红书创作服务平台账号概览及内容分析数据，按运行时间分文件夹保存。",
-  "version": "2026.10.29.908",
+  "version": "2026.10.29.1110",
   "minimum_chrome_version": "114",
   "permissions": [
     "tabs",
@@ -26,5 +26,5 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "version_name": "202610290908"
+  "version_name": "202610291110"
 }
